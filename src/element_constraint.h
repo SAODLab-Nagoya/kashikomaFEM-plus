@@ -8,7 +8,9 @@ struct Element
 {
   void CalculateStiffnessMatrix(const Eigen::Matrix3f &D, std::vector<Eigen::Triplet<float>> &triplets, Eigen::VectorXf nodesX, Eigen::VectorXf nodesY);
 
+  //B matrix
   Eigen::Matrix<float, 3, 6> B;
+  //node ID in an element
   int nodesIds[3];
 };
 

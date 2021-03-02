@@ -1,9 +1,10 @@
 COMPILER  = g++
-CFLAGS    = -g -MMD -MP -Wall -Wextra -Winit-self -Wno-missing-field-initializers
-LDFLAGS = -lm -fopenmp
+CFLAGS    = -g -MMD -MP -Wall -Wextra
+#CFLAGS    = -O3 -fopenmp
+LDFLAGS   = -lm -fopenmp
 LIBS      =
 INCLUDE   = -I./vendor
-TARGET    = ./bin/$(shell basename `readlink -f .`)
+TARGET    = kashikoma
 SRCDIR    = ./src
 SOURCES   = $(wildcard $(SRCDIR)/*.cpp)
 OBJDIR    = ./obj
