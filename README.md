@@ -1,0 +1,2 @@
+# kashikomaFEM
+simple FEM code
