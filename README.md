@@ -1,2 +1,17 @@
 # kashikomaFEM
-simple FEM code
+kashikomaFEM is a simple FEM code.  
+This code is based on [MinimalFEM](https://github.com/podgorskiy/MinimalFEM/), so this code is also MIT license.  
+
+# How to use
+
+1 command "make" in kashikomaFEM/
+```
+make
+```
+
+2 execute the below command  
+```
+./kashikoma input/test1.inp output/test1.vtk
+```
+
+3 You can the result in [paraview](https://www.paraview.org/)
