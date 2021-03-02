@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
   float poissonRatio, youngModulus;
   infile >> poissonRatio >> youngModulus;
 
-  //set D matrix
+  //set D matrix(plane stress)
   Eigen::Matrix3f D;
   D << 1.0f, poissonRatio, 0.0f,
       poissonRatio, 1.0, 0.0f,
@@ -128,6 +128,7 @@ int main(int argc, char *argv[])
   }
 
   output(argv[2], displacements, sigma_mises);
+
   std::cout << "kashikoma finished" << std::endl;
   return 0;
 }

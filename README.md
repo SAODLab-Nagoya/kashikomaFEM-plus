@@ -10,7 +10,7 @@ This code is based on [MinimalFEM](https://github.com/podgorskiy/MinimalFEM/)([T
 make
 ```
 
-2 execute the below command  
+2 execute with the below command  
 ```
 ./kashikoma input/test1.inp output/test1.vtk
 ```
