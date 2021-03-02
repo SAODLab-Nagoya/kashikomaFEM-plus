@@ -7,13 +7,19 @@
 
 void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator &it, int index);
 void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Constraint> &constraints);
-void output(char *outputPass, Eigen::VectorXf displacements);
+void output(char *outputPass, Eigen::VectorXf &displacements, std::vector<float> &sigma_mises);
 
+//variables about node
 int nodesCount;
 Eigen::VectorXf nodesX;
 Eigen::VectorXf nodesY;
-Eigen::VectorXf loads;
+
+//variables about element
+int elementCount;
 std::vector<Element> elements;
+
+//variables about Boundary Condition
+Eigen::VectorXf loads;
 std::vector<Constraint> constraints;
 
 int main(int argc, char *argv[])
@@ -50,7 +56,6 @@ int main(int argc, char *argv[])
   }
 
   //input element
-  int elementCount;
   infile >> elementCount;
 
   for (int i = 0; i < elementCount; ++i)
@@ -96,7 +101,7 @@ int main(int argc, char *argv[])
     it->CalculateStiffnessMatrix(D, triplets, nodesX, nodesY);
   }
 
-  //set get stiffness matrix
+  //set global stiffness matrix
   Eigen::SparseMatrix<float> globalK(2 * nodesCount, 2 * nodesCount);
   globalK.setFromTriplets(triplets.begin(), triplets.end());
 
@@ -110,6 +115,7 @@ int main(int argc, char *argv[])
   //output displacement and mises stress to vtk file
   outfile << displacements << std::endl;
 
+  std::vector<float> sigma_mises;
   for (std::vector<Element>::iterator it = elements.begin(); it != elements.end(); ++it)
   {
     Eigen::Matrix<float, 6, 1> delta;
@@ -118,12 +124,10 @@ int main(int argc, char *argv[])
         displacements.segment<2>(2 * it->nodesIds[2]);
 
     Eigen::Vector3f sigma = D * it->B * delta;
-    float sigma_mises = sqrt(sigma[0] * sigma[0] - sigma[0] * sigma[1] + sigma[1] * sigma[1] + 3.0f * sigma[2] * sigma[2]);
-
-    outfile << sigma_mises << std::endl;
+    sigma_mises.push_back(sqrt(sigma[0] * sigma[0] - sigma[0] * sigma[1] + sigma[1] * sigma[1] + 3.0f * sigma[2] * sigma[2]));
   }
 
-  output(argv[2], displacements);
+  output(argv[2], displacements, sigma_mises);
   std::cout << "kashikoma finished" << std::endl;
   return 0;
 }
@@ -164,7 +168,7 @@ void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Constrain
   }
 }
 
-void output(char *outputPass, Eigen::VectorXf displacements)
+void output(char *outputPass, Eigen::VectorXf &displacements, std::vector<float> &sigma_mises)
 {
   std::ofstream outfile(outputPass);
   //header
@@ -175,71 +179,66 @@ void output(char *outputPass, Eigen::VectorXf displacements)
 
   //coordinate
   outfile << "POINTS"
-          << " " << 4 << " "
+          << " " << nodesCount << " "
           << "float" << std::endl;
 
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < nodesCount; i++)
   {
-    outfile << "    "
-            << std::scientific << nodesX[i] << "    "
-            << std::scientific << nodesY[i] << "    "
-            << 0.0 << std::endl;
+    outfile << std::setw(16) << std::scientific << nodesX[i]
+            << std::setw(16) << std::scientific << nodesY[i]
+            << std::setw(16) << std::scientific << 0.0
+            << std::endl;
   }
   outfile << std::endl;
 
   //connectivity
   outfile << "CELLS"
-          << " " << 2 << " " << (3 + 1) * 2 << std ::endl;
+          << " " << elementCount << " " << (elements[0].ne + 1) * elementCount << std ::endl;
 
-  for (int i = 0; i < 2; i++)
+  for (int i = 0; i < elementCount; i++)
   {
-    outfile << std::endl;
-    for (int j = 0; j < 3; j++)
+    outfile << std::setw(8) << std::right << elements[i].ne;
+    for (int j = 0; j < elements[i].ne; j++)
     {
-      outfile << 3 << 3 << 3 << std::endl;
+      outfile << std::setw(8) << std::right << elements[i].nodesIds[j];
     }
     outfile << std::endl;
   }
   outfile << std::endl;
 
-  //cell shape
-  //the cell type number of square is 9
+  //cell shape(triangle is 5,square is 9)
   outfile << "CELL_TYPES"
-          << " " << 2 << std::endl;
-  for (int i = 0; i < 2; i++)
+          << " " << elementCount << std::endl;
+  for (int i = 0; i < elementCount; i++)
   {
-    outfile << 9 << std::endl;
+    outfile << std::setw(8) << std::right << 5 << std::endl;
   }
   outfile << std::endl;
 
   //displacement
   outfile << "POINT_DATA"
-          << " " << 4 << std::endl;
+          << " " << nodesCount << std::endl;
   outfile << "VECTORS displacement float" << std::endl;
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < nodesCount; i++)
   {
-    outfile << displacements[i];
+    outfile << std::setw(16) << std::scientific << displacements[2 * i]
+            << std::setw(16) << std::scientific << displacements[2 * i + 1]
+            << std::setw(16) << std::scientific << 0.0
+            << std::endl;
   }
   outfile << std::endl;
 
   //mises stress
   outfile << "CELL_DATA"
-          << " " << 2 << std::endl
-          << "SCALARS mises stress float" << std::endl
+          << " " << elementCount << std::endl
+          << "SCALARS mises_stress float" << std::endl
           << "LOOKUP_TABLE default" << std::endl;
 
-  // for (std::vector<Element>::iterator it = elements.begin(); it != elements.end(); ++it)
-  // {
-  //   Eigen::Matrix<float, 6, 1> delta;
-  //   delta << displacements.segment<2>(2 * it->nodesIds[0]),
-  //       displacements.segment<2>(2 * it->nodesIds[1]),
-  //       displacements.segment<2>(2 * it->nodesIds[2]);
-
-  //   Eigen::Vector3f sigma = D * it->B * delta;
-  //   float sigma_mises = sqrt(sigma[0] * sigma[0] - sigma[0] * sigma[1] + sigma[1] * sigma[1] + 3.0f * sigma[2] * sigma[2]);
-
-  //   outfile << sigma_mises << std::endl;
-  // }
+  for (int i = 0; i < elementCount; i++)
+  {
+    outfile << std::setw(16) << std::scientific << sigma_mises[i]
+            << std::endl;
+  }
 
   outfile << std::endl;
 }

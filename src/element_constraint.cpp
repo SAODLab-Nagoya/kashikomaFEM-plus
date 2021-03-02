@@ -6,6 +6,7 @@ void Element::CalculateStiffnessMatrix(const Eigen::Matrix3f &D, std::vector<Eig
   x << nodesX[nodesIds[0]], nodesX[nodesIds[1]], nodesX[nodesIds[2]];
   y << nodesY[nodesIds[0]], nodesY[nodesIds[1]], nodesY[nodesIds[2]];
 
+  //C is the area in this element
   Eigen::Matrix3f C;
   C << Eigen::Vector3f(1.0f, 1.0f, 1.0f), x, y;
 
