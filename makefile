@@ -1,31 +1,28 @@
-TARGET = kashikoma
+COMPILER  = g++
+CFLAGS    = -g -MMD -MP -Wall -Wextra -Winit-self -Wno-missing-field-initializers
+LDFLAGS = -lm -fopenmp
+LIBS      =
+INCLUDE   = -I./vendor
+TARGET    = ./bin/$(shell basename `readlink -f .`)
+SRCDIR    = ./src
+SOURCES   = $(wildcard $(SRCDIR)/*.cpp)
+OBJDIR    = ./obj
+ifeq "$(strip $(OBJDIR))" ""
+  OBJDIR  = .
+endif
+OBJECTS   = $(addprefix $(OBJDIR)/, $(notdir $(SOURCES:.cpp=.o)))
+DEPENDS   = $(OBJECTS:.o=.d)
 
-SRC_DIR = src
-SOURCES = main.c pre_process.c post_process.c solver.c
+$(TARGET): $(OBJECTS) $(LIBS)
+	$(COMPILER) -o $@ $^ $(LDFLAGS)
 
-OBJECTS := $(addprefix $(SRC_DIR)/,$(SOURCES:.c=.o))
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp
+	-mkdir -p $(OBJDIR)
+	$(COMPILER) $(CFLAGS) $(INCLUDE) -o $@ -c $<
 
-CC = gcc
-#CC = icc
-#CC = mpicc
-
-CFLAGS = -g
-#CFLAGS = -O3 -fopenmp
-
-$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $(TARGET)
-	@echo "make completed!! Please execute!!"
-
-.SUFFIXES : .o .c
-.c.o:
-	${CC} $(CFLAGS) -c $< -o $@
+all: clean $(TARGET)
 
 clean:
-	$(RM) $(TARGET) $(OBJECTS)
+	-rm -f $(OBJECTS) $(DEPENDS) $(TARGET)
 
-# header dependencies
-src/main.o : src/func_header.h
-src/pre_process.o : src/func_header.h
-src/post_process.o : src/func_header.h
-src/solver.o : src/func_header.h
-
+-include $(DEPENDS)
