@@ -1,6 +1,6 @@
 COMPILER  = g++
-CFLAGS    = -g -MMD -MP -Wall -Wextra
-#CFLAGS    = -O3 -fopenmp
+#CFLAGS    = -g -MMD -MP -Wall -Wextra
+CFLAGS    = -O3 -fopenmp
 LDFLAGS   = -lm -fopenmp
 LIBS      =
 INCLUDE   = -I./vendor
@@ -16,6 +16,7 @@ DEPENDS   = $(OBJECTS:.o=.d)
 
 $(TARGET): $(OBJECTS) $(LIBS)
 	$(COMPILER) -o $@ $^ $(LDFLAGS)
+	@echo "make done!!"
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	-mkdir -p $(OBJDIR)

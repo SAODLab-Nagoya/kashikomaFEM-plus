@@ -31,7 +31,6 @@ int main(int argc, char *argv[])
   }
 
   std::ifstream infile(argv[1]);
-  std::ofstream outfile(argv[2]);
 
   //input poisson's ratio & young's modulus
   float poissonRatio, youngModulus;
@@ -107,14 +106,27 @@ int main(int argc, char *argv[])
 
   ApplyConstraints(globalK, constraints);
 
-  //solver
-  Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver(globalK);
+  Eigen::VectorXf displacements;
 
-  Eigen::VectorXf displacements = solver.solve(loads);
+  //solver(deirect method)
+  if (1)
+  {
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
+    solver.compute(globalK);
+    displacements = solver.solve(loads);
+  }
 
-  //output displacement and mises stress to vtk file
-  outfile << displacements << std::endl;
+  //solver(iterative method)
+  else
+  {
+    Eigen::ConjugateGradient<Eigen::SparseMatrix<float>> solver;
+    solver.compute(globalK);
+    displacements = solver.solve(loads);
+    std::cout << "#iterations:     " << solver.iterations() << std::endl;
+    std::cout << "estimated error: " << solver.error() << std::endl;
+  }
 
+  //make von-Mises stress
   std::vector<float> sigma_mises;
   for (std::vector<Element>::iterator it = elements.begin(); it != elements.end(); ++it)
   {
@@ -131,14 +143,6 @@ int main(int argc, char *argv[])
 
   std::cout << "kashikoma finished" << std::endl;
   return 0;
-}
-
-void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator &it, int index)
-{
-  if (it.row() == index || it.col() == index)
-  {
-    it.valueRef() = it.row() == it.col() ? 1.0f : 0.0f;
-  }
 }
 
 void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Constraint> &constraints)
@@ -166,6 +170,14 @@ void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Constrain
         SetConstraints(it, *idit);
       }
     }
+  }
+}
+
+void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator &it, int index)
+{
+  if (it.row() == index || it.col() == index)
+  {
+    it.valueRef() = it.row() == it.col() ? 1.0f : 0.0f;
   }
 }
 

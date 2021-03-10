@@ -2,7 +2,7 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-
+#include <Eigen/IterativeLinearSolvers>
 //element class
 struct Element
 {
@@ -19,12 +19,14 @@ struct Element
 //constraint class
 struct Constraint
 {
+  //UX=1, UY=2, UXY=3
   enum Type
   {
     UX = 1 << 0,
     UY = 1 << 1,
     UXY = UX | UY
   };
+  //node number of constrainted
   int node;
   Type type;
 };
