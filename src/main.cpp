@@ -5,14 +5,12 @@
 #include <iomanip>
 #include "element_constraint.h"
 
-void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator &it, int index);
-void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Constraint> &constraints);
+void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Node> &nodes, Eigen::VectorXf &loads);
 void output(char *outputPass, Eigen::VectorXf &displacements, std::vector<float> &sigma_mises);
 
 //variables about node
 int nodesCount;
-Eigen::VectorXf nodesX;
-Eigen::VectorXf nodesY;
+std::vector<Node> nodes;
 
 //variables about element
 int elementCount;
@@ -20,7 +18,6 @@ std::vector<Element> elements;
 
 //variables about Boundary Condition
 Eigen::VectorXf loads;
-std::vector<Constraint> constraints;
 
 int main(int argc, char *argv[])
 {
@@ -37,24 +34,21 @@ int main(int argc, char *argv[])
   infile >> poissonRatio >> youngModulus;
 
   //set D matrix(plane stress)
-  Eigen::Matrix3f D;
-  D << 1.0f, poissonRatio, 0.0f,
+  Eigen::Matrix3f De;
+  De << 1.0f, poissonRatio, 0.0f,
       poissonRatio, 1.0, 0.0f,
       0.0f, 0.0f, (1.0f - poissonRatio) / 2.0f;
 
-  D *= youngModulus / (1.0f - pow(poissonRatio, 2.0f));
+  De *= youngModulus / (1.0f - pow(poissonRatio, 2.0f));
 
   //input node's coordinate
   infile >> nodesCount;
-  nodesX.resize(nodesCount);
-  nodesY.resize(nodesCount);
+  nodes.resize(nodesCount);
 
   for (int i = 0; i < nodesCount; ++i)
-  {
-    infile >> nodesX[i] >> nodesY[i];
-  }
+    infile >> nodes[i].x[0] >> nodes[i].x[1];
 
-  //input element
+  //input elementf
   infile >> elementCount;
 
   for (int i = 0; i < elementCount; ++i)
@@ -64,26 +58,40 @@ int main(int argc, char *argv[])
     elements.push_back(element);
   }
 
-  //input neumann boundary
+  //input dirichlet boundary
   int constraintCount;
   infile >> constraintCount;
 
   for (int i = 0; i < constraintCount; ++i)
   {
-    Constraint constraint;
-    int type;
-    infile >> constraint.node >> type;
-    constraint.type = static_cast<Constraint::Type>(type);
-    constraints.push_back(constraint);
+    int nodeID, type;
+    infile >> nodeID >> type;
+    if (nodes[nodeID].dirich == nullptr)
+    {
+      std::shared_ptr<Dirichlet> dirich(new Dirichlet);
+      if (type == 1)
+        dirich->flag[0] = 1;
+      else if (type == 2)
+        dirich->flag[1] = 1;
+      else if (type == 3)
+      {
+        dirich->flag[0] = 1;
+        dirich->flag[1] = 1;
+      }
+      else
+      {
+        std::cerr << "please put correct dirichlet value in input file" << std::endl;
+        exit(1);
+      }
+      nodes[nodeID].dirich = dirich;
+    }
   }
 
-  //input dirichlet boundary
+  //input neumann boundary
   loads.resize(2 * nodesCount);
   loads.setZero();
-
   int loadsCount;
   infile >> loadsCount;
-
   for (int i = 0; i < loadsCount; ++i)
   {
     int node;
@@ -93,18 +101,16 @@ int main(int argc, char *argv[])
     loads[2 * node + 1] = y;
   }
 
-  //get an element stiffness matrix
+  //get an element stiffness matrix's triplets
   std::vector<Eigen::Triplet<float>> triplets;
   for (std::vector<Element>::iterator it = elements.begin(); it != elements.end(); ++it)
-  {
-    it->CalculateStiffnessMatrix(D, triplets, nodesX, nodesY);
-  }
+    it->CalculateStiffnessMatrix(De, triplets, nodes);
 
   //set global stiffness matrix
   Eigen::SparseMatrix<float> globalK(2 * nodesCount, 2 * nodesCount);
   globalK.setFromTriplets(triplets.begin(), triplets.end());
 
-  ApplyConstraints(globalK, constraints);
+  ApplyConstraints(globalK, nodes, loads);
 
   Eigen::VectorXf displacements;
 
@@ -135,7 +141,7 @@ int main(int argc, char *argv[])
         displacements.segment<2>(2 * it->nodesIds[1]),
         displacements.segment<2>(2 * it->nodesIds[2]);
 
-    Eigen::Vector3f sigma = D * it->B * delta;
+    Eigen::Vector3f sigma = De * it->B * delta;
     sigma_mises.push_back(sqrt(sigma[0] * sigma[0] - sigma[0] * sigma[1] + sigma[1] * sigma[1] + 3.0f * sigma[2] * sigma[2]));
   }
 
@@ -145,40 +151,40 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Constraint> &constraints)
+void ApplyConstraints(Eigen::SparseMatrix<float> &K, const std::vector<Node> &nodes, Eigen::VectorXf &loads)
 {
-  std::vector<int> indicesToConstraint;
-
-  for (std::vector<Constraint>::const_iterator it = constraints.begin(); it != constraints.end(); ++it)
+  ///Set constraints on Kmatrix.
+  Eigen::SparseMatrix<float> I(2 * nodesCount, 2 * nodesCount);
+  I.setIdentity();
+  Eigen::SparseMatrix<float> N(2 * nodesCount, 2 * nodesCount);
+  std::vector<Eigen::Triplet<float>> triplets;
+  for (int i = 0; i < nodesCount; i++)
   {
-    if (it->type & Constraint::UX)
+    if (nodes[i].dirich == nullptr)
     {
-      indicesToConstraint.push_back(2 * it->node + 0);
-    }
-    if (it->type & Constraint::UY)
-    {
-      indicesToConstraint.push_back(2 * it->node + 1);
-    }
-  }
-
-  for (int k = 0; k < K.outerSize(); ++k)
-  {
-    for (Eigen::SparseMatrix<float>::InnerIterator it(K, k); it; ++it)
-    {
-      for (std::vector<int>::iterator idit = indicesToConstraint.begin(); idit != indicesToConstraint.end(); ++idit)
+      for (int j = 0; j < 2; j++)
       {
-        SetConstraints(it, *idit);
+        Eigen::Triplet<float> tmp(2 * i + j, 2 * i + j, 1);
+        triplets.push_back(tmp);
+      }
+    }
+    else
+    {
+      for (int j = 0; j < 2; j++)
+      {
+        if (nodes[i].dirich->flag[j] == 0)
+        {
+          Eigen::Triplet<float> tmp(2 * i + j, 2 * i + j, 1);
+          triplets.push_back(tmp);
+        }
+        ///Change the external force to make it consistent with the constraint conditions.
+        else
+          loads[2 * i + j] = 0.0;
       }
     }
   }
-}
-
-void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator &it, int index)
-{
-  if (it.row() == index || it.col() == index)
-  {
-    it.valueRef() = it.row() == it.col() ? 1.0f : 0.0f;
-  }
+  N.setFromTriplets(triplets.begin(), triplets.end());
+  K = N.transpose() * K * N + (I - N);
 }
 
 void output(char *outputPass, Eigen::VectorXf &displacements, std::vector<float> &sigma_mises)
@@ -197,8 +203,8 @@ void output(char *outputPass, Eigen::VectorXf &displacements, std::vector<float>
 
   for (int i = 0; i < nodesCount; i++)
   {
-    outfile << std::setw(16) << std::scientific << nodesX[i]
-            << std::setw(16) << std::scientific << nodesY[i]
+    outfile << std::setw(16) << std::scientific << nodes[i].x[0]
+            << std::setw(16) << std::scientific << nodes[i].x[1]
             << std::setw(16) << std::scientific << 0.0
             << std::endl;
   }

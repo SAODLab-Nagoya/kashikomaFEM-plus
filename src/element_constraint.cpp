@@ -1,10 +1,10 @@
 #include "element_constraint.h"
 
-void Element::CalculateStiffnessMatrix(const Eigen::Matrix3f &D, std::vector<Eigen::Triplet<float>> &triplets, Eigen::VectorXf nodesX, Eigen::VectorXf nodesY)
+void Element::CalculateStiffnessMatrix(const Eigen::Matrix3f &D, std::vector<Eigen::Triplet<float>> &triplets, std::vector<Node> &nodes)
 {
   Eigen::Vector3f x, y;
-  x << nodesX[nodesIds[0]], nodesX[nodesIds[1]], nodesX[nodesIds[2]];
-  y << nodesY[nodesIds[0]], nodesY[nodesIds[1]], nodesY[nodesIds[2]];
+  x << nodes[nodesIds[0]].x[0], nodes[nodesIds[1]].x[0], nodes[nodesIds[2]].x[0];
+  y << nodes[nodesIds[0]].x[1], nodes[nodesIds[1]].x[1], nodes[nodesIds[2]].x[1];
 
   //C is the area in this element
   Eigen::Matrix3f C;
